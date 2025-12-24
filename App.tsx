@@ -83,7 +83,7 @@ const App: React.FC = () => {
     setErrorMessage(null);
     setChatMessages([]);
     setIsAiThinking(false);
-    setIsApiKeySelected(false);
+    // Do not clear isApiKeySelected here, as it's a global app requirement
     setGithubPat(null);
     setActiveTab('aiAssistant');
     // Clear localStorage on state clear
@@ -214,18 +214,17 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Error in AI interaction:', err);
-      setErrorMessage(err.message || 'Failed to get AI response. Please try again.');
+      // Explicitly check for the API key error from geminiService
       if (err.message.includes("API Key selection failed or is invalid.")) {
-        setIsApiKeySelected(false);
-        setErrorMessage("Invalid API Key. Please select a valid key from a paid GCP project.");
+        setIsApiKeySelected(false); // Trigger ApiKeyChecker modal
+        setErrorMessage("Invalid API Key. Please select a valid key from a paid Google Cloud Project.");
+      } else {
+        setErrorMessage(err.message || 'Failed to get AI response. Please try again.');
       }
-      // If an error occurs, ensure the AI thinking state is reset and
-      // remove any incomplete AI message or mark it as errored if desired.
-      // For now, the error message in state handles the notification.
     } finally {
       setIsAiThinking(false);
     }
-  }, [chatMessages, setIsApiKeySelected, repoFiles, selectedFilePath, currentFileContent]);
+  }, [repoFiles, selectedFilePath, currentFileContent]); // chatMessages dependency removed to prevent stale closure issues with setChatMessages inside useCallback
 
   // Effect to load the stored repo on initial mount
   useEffect(() => {
@@ -263,7 +262,7 @@ const App: React.FC = () => {
       // If no stored URL, show the input modal for first-time use
       setShowRepoInputModal(true);
     }
-  }, [fetchRepo]); // Depend on fetchRepo to ensure it's available
+  }, [fetchRepo, setGithubPat, setRepoUrl]); // Depend on fetchRepo to ensure it's available and state setters
 
   const contextValue = useContextValue();
 

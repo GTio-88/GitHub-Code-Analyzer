@@ -1,7 +1,7 @@
 import React, { useContext, useState, useRef, useEffect } from 'react';
 import { AppContext } from '../App';
 import { ChatMessage } from '../types';
-import LoadingSpinner from './LoadingSpinner';
+import LoadingSpinner from './LoadingSpinner'; // Use the updated LoadingSpinner
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm'; // For GitHub Flavored Markdown
 
@@ -47,7 +47,7 @@ const ChatInterface: React.FC = () => {
   };
 
   // Separate disabled states for textarea and send button for better UX
-  const isTextAreaDisabled = isAiThinking;
+  const isTextAreaDisabled = isAiThinking || !repoFiles.length;
   const isSendButtonDisabled = isAiThinking || !userQuery.trim() || !repoFiles.length;
 
   // Dynamic text for the send button
@@ -58,14 +58,33 @@ const ChatInterface: React.FC = () => {
     return 'Send';
   };
 
+  // Dynamic placeholder for the textarea
+  const getTextAreaPlaceholder = () => {
+    if (!repoFiles.length) {
+      return 'Enter a GitHub URL first, then select a file to ask questions.';
+    }
+    if (selectedFilePath) {
+      return `Ask about '${selectedFilePath}' or general repo advice...`;
+    }
+    return 'Ask general questions about the repository structure or purpose...';
+  };
+
   return (
     <div className="flex flex-col h-full bg-gray-900">
       <div ref={chatContainerRef} className="flex-1 p-6 overflow-y-auto custom-scrollbar flex flex-col gap-8">
         {chatMessages.length === 0 && (
           <div className="text-gray-400 text-center py-8 text-xl px-4">
-            Start by asking about the selected code, or general coding advice for the repo.
-            <br/>
-            <span className="text-indigo-300 font-medium">(Select a file for AI to analyze its content.)</span>
+            {repoFiles.length > 0 ? (
+              <>
+                Start by asking about the selected code, or general coding advice for the repo.
+                <br/>
+                <span className="text-indigo-300 font-medium">(Select a file for AI to analyze its content.)</span>
+              </>
+            ) : (
+              <>
+                Load a GitHub repository to begin your code analysis journey.
+              </>
+            )}
           </div>
         )}
         {chatMessages.map((message, index) => (
@@ -89,11 +108,11 @@ const ChatInterface: React.FC = () => {
                     code: ({ node, inline, className, children, ...props }) => {
                       const match = /language-(\w+)/.exec(className || '');
                       return !inline && match ? (
-                        <code className="block bg-gray-800 p-3 rounded-md overflow-x-auto text-sm my-2">
+                        <code className="block bg-gray-800 p-3 rounded-md overflow-x-auto text-sm my-2 font-mono">
                           {String(children).replace(/\n$/, '')}
                         </code>
                       ) : (
-                        <code className="bg-gray-600 text-sm px-1 rounded-md">{children}</code>
+                        <code className="bg-gray-600 text-sm px-1 rounded-md font-mono">{children}</code>
                       );
                     },
                     pre: ({ children }) => <pre className="p-0 m-0">{children}</pre>, // Prevent markdown from adding extra pre styling
@@ -120,7 +139,7 @@ const ChatInterface: React.FC = () => {
           <div className="flex justify-start animate-slide-in-up">
             <div className="max-w-xl p-5 rounded-2xl shadow-lg bg-gray-700 text-gray-100 rounded-bl-none">
               <p className="font-bold mb-2">AI:</p>
-              <LoadingSpinner />
+              <LoadingSpinner message="AI is thinking..." /> {/* Updated to use message prop */}
             </div>
           </div>
         )}
@@ -139,11 +158,7 @@ const ChatInterface: React.FC = () => {
               handleSendMessage();
             }
           }}
-          placeholder={
-            selectedFilePath
-              ? `Ask about '${selectedFilePath}' or general repo advice...`
-              : 'Enter a GitHub URL first, then select a file to ask questions.'
-          }
+          placeholder={getTextAreaPlaceholder()}
           rows={4}
           className="flex-grow p-4 rounded-xl bg-gray-700 text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 border border-transparent focus:border-indigo-600 resize-y custom-scrollbar transition-colors duration-200 text-base"
           disabled={isTextAreaDisabled}

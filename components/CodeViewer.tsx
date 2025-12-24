@@ -51,12 +51,28 @@ const getLanguage = (filePath: string): string => {
 };
 
 const CodeViewer: React.FC = () => {
-  const { currentFileContent, selectedFilePath, isLoading, errorMessage } = useContext(AppContext);
+  const { currentFileContent, selectedFilePath, isLoading, errorMessage, repoFiles } = useContext(AppContext);
+
+  // Skeleton loader for when no file is selected but a repo is loaded
+  const renderCodeSkeleton = () => (
+    <div className="p-8 flex flex-col gap-3 animate-pulse">
+      <div className="h-6 bg-gray-700 rounded w-4/5"></div>
+      <div className="h-6 bg-gray-700 rounded w-3/4"></div>
+      <div className="h-6 bg-gray-700 rounded w-11/12"></div>
+      <div className="h-6 bg-gray-700 rounded w-2/3"></div>
+      <div className="h-6 bg-gray-700 rounded w-full"></div>
+      <div className="h-6 bg-gray-700 rounded w-1/2"></div>
+      <div className="h-6 bg-gray-700 rounded w-3/5"></div>
+      <div className="h-6 bg-gray-700 rounded w-full"></div>
+      <div className="h-6 bg-gray-700 rounded w-9/12"></div>
+      <div className="h-6 bg-gray-700 rounded w-2/5"></div>
+    </div>
+  );
 
   if (isLoading && selectedFilePath) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-900 text-gray-300 min-w-0 h-full">
-        <LoadingSpinner />
+        <LoadingSpinner message={`Loading content for ${selectedFilePath}...`} />
       </div>
     );
   }
@@ -69,10 +85,21 @@ const CodeViewer: React.FC = () => {
     );
   }
 
-  if (!selectedFilePath) {
+  // Show skeleton if repo is loaded but no file selected
+  if (!selectedFilePath && repoFiles.length > 0) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center bg-gray-900 text-gray-400 text-xl text-center min-w-0 px-8 h-full">
+        <p className="mb-8">Select a file from the left panel to view its content.</p>
+        {renderCodeSkeleton()}
+      </div>
+    );
+  }
+
+  // Show initial message if no repo is loaded
+  if (!selectedFilePath && repoFiles.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-900 text-gray-400 text-xl text-center min-w-0 px-8 h-full">
-        <p>Select a file from the left panel to view its content.</p>
+        <p>Enter a GitHub URL and select a file to view its content.</p>
       </div>
     );
   }
@@ -88,26 +115,26 @@ const CodeViewer: React.FC = () => {
         showLineNumbers={true}
         wrapLines={true}
         customStyle={{
-          backgroundColor: 'transparent', // Make background transparent to use parent's bg-gray-900
-          padding: '0', // Remove default padding
-          margin: '0', // Remove default margin
-          fontSize: '1rem', // Match text-base
-          lineHeight: '1.6', // Match leading-relaxed
-          fontFamily: 'monospace', // Ensure monospace font
-          overflowX: 'hidden', // Hide horizontal scrollbar within highlighter if content wraps
+          backgroundColor: 'transparent',
+          padding: '0',
+          margin: '0',
+          fontSize: '1rem',
+          lineHeight: '1.6',
+          fontFamily: `'Fira Code', 'JetBrains Mono', monospace`, // Explicit monospace font
+          overflowX: 'hidden',
         }}
         codeTagProps={{
           style: {
             fontSize: '1rem',
             lineHeight: '1.6',
-            fontFamily: 'monospace',
+            fontFamily: `'Fira Code', 'JetBrains Mono', monospace`, // Explicit monospace font
           },
         }}
         lineNumberContainerStyle={{
           float: 'left',
           paddingRight: '1em',
           textAlign: 'right',
-          color: '#6b7280', // Tailwind gray-500
+          color: '#6b7280',
           userSelect: 'none',
         }}
       >

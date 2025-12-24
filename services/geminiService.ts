@@ -114,7 +114,7 @@ export async function* analyzeCodeWithGemini(
 
   try {
     const streamResponse = await ai.models.generateContentStream({
-      model: 'gemini-flash-latest',
+      model: 'gemini-3-flash-preview', // Changed model to 'gemini-3-flash-preview' as per guidelines
       contents: { parts: [{ text: prompt }] },
       config: {
         temperature: 0.7,
@@ -132,8 +132,9 @@ export async function* analyzeCodeWithGemini(
     }
   } catch (error: any) {
     console.error('Gemini API error during streaming:', error);
-    if (error.message.includes("Requested entity was not found.")) {
-      throw new Error("API Key selection failed or is invalid. Please ensure you have selected a valid paid API key for Veo/Gemini models.");
+    // Refined error message as per guidelines
+    if (error.message.includes("Requested entity was not found.") || error.message.includes("API key not valid")) {
+      throw new Error("API Key selection failed or is invalid. Please ensure you have selected a valid paid API key from a Google Cloud Project.");
     }
     throw new Error(`Failed to get response from AI: ${error.message || 'Unknown error'}`);
   }

@@ -1,6 +1,7 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { AppContext } from '../App';
 import { RepoFile } from '../types';
+import LoadingSpinner from './LoadingSpinner'; // Import LoadingSpinner
 
 interface FileTreeItemProps {
   file: RepoFile;
@@ -13,23 +14,23 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ file, level }) => {
     fetchFileContent,
     selectedFilePath,
     isLoading,
-    currentFileContent, // To force re-render when file content is loaded/cleared
   } = useContext(AppContext);
   const [isOpen, setIsOpen] = useState(false);
 
   // Close directories if selectedFilePath is cleared externally
   useEffect(() => {
-    if (!selectedFilePath) {
+    if (!selectedFilePath || !selectedFilePath.startsWith(file.path + '/')) { // Also close if selected file is not a child
       setIsOpen(false);
+    } else {
+      // If the selected file is a child, ensure the parent directory is open
+      setIsOpen(true);
     }
-  }, [selectedFilePath]);
+  }, [selectedFilePath, file.path]);
 
   const handleFileClick = async (filePath: string) => {
     if (file.type === 'file') {
-      if (selectedFilePath === filePath && currentFileContent) {
-        // If already selected and content is present, do nothing (prevent re-fetching)
-        return;
-      }
+      // Always allow re-selection to trigger content fetch, in case content changed or cleared.
+      // The fetchFileContent function itself can optimize against unnecessary re-fetches.
       setSelectedFilePath(filePath);
       await fetchFileContent(filePath);
     } else { // It's a directory
@@ -38,6 +39,7 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ file, level }) => {
   };
 
   const isSelected = selectedFilePath === file.path;
+  const isCurrentlyFetchingSelectedFile = isLoading && isSelected && file.type === 'file';
 
   return (
     <div>
@@ -68,7 +70,7 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ file, level }) => {
           </svg>
         )}
         <span>{file.name}</span>
-        {isSelected && isLoading && (
+        {isCurrentlyFetchingSelectedFile && (
             <div className="ml-2 animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-indigo-300"></div>
         )}
       </div>
@@ -92,18 +94,30 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ file, level }) => {
 const FileTree: React.FC = () => {
   const { repoFiles, isLoading, errorMessage } = useContext(AppContext);
 
-  if (isLoading && !repoFiles.length) {
+  // Skeleton loader for when the entire repo is loading
+  const renderSkeleton = () => (
+    <div className="p-4 flex flex-col gap-3 animate-pulse">
+      <div className="h-6 bg-gray-700 rounded w-full"></div>
+      <div className="h-6 bg-gray-700 rounded w-11/12 ml-4"></div>
+      <div className="h-6 bg-gray-700 rounded w-10/12 ml-4"></div>
+      <div className="h-6 bg-gray-700 rounded w-full"></div>
+      <div className="h-6 bg-gray-700 rounded w-9/12 ml-4"></div>
+      <div className="h-6 bg-gray-700 rounded w-full"></div>
+      <div className="h-6 bg-gray-700 rounded w-11/12 ml-4"></div>
+      <div className="h-6 bg-gray-700 rounded w-8/12 ml-4"></div>
+    </div>
+  );
+
+  if (isLoading && repoFiles.length === 0) { // Only show skeleton if no files are loaded yet
     return (
-      <div className="p-4 text-gray-400 flex items-center justify-center h-full">
-        <div className="flex flex-col items-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500 mb-3"></div>
-          <p className="text-lg">Loading repository files...</p>
-        </div>
+      <div className="p-4 text-gray-400 flex flex-col items-center justify-center h-full">
+        <LoadingSpinner message="Loading repository files..." />
+        {renderSkeleton()}
       </div>
     );
   }
 
-  if (errorMessage && !repoFiles.length) {
+  if (errorMessage && repoFiles.length === 0) {
     return (
       <div className="p-4 text-red-500 flex items-center justify-center h-full text-center text-lg font-medium" role="alert">
         <p>Error loading files: {errorMessage}</p>
