@@ -4,14 +4,16 @@ import FileTree from './components/FileTree';
 import CodeViewer from './components/CodeViewer';
 import ChatInterface from './components/ChatInterface';
 import ApiKeyChecker from './components/ApiKeyChecker';
-import { RepoFile, ChatMessage, AppContextType } from './types';
+import Modal from './components/Modal'; // New import
+import Tabs from './components/Tabs'; // New import
+import { RepoFile, ChatMessage, AppContextType, ActiveTab } from './types';
 import { fetchDefaultBranch, fetchRepoTree, fetchFileContent as fetchGitHubFileContent } from './services/githubService';
 import { analyzeCodeWithGemini } from './services/geminiService';
 
 export const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const App: React.FC = () => {
-  const [repoUrl, setRepoUrl] = useState<string>('');
+  const [repoUrl, setRepoUrl] = useState<string>('https://github.com/google/gemini-api-cookbook');
   const [repoOwner, setRepoOwner] = useState<string>('');
   const [repoName, setRepoName] = useState<string>('');
   const [repoFiles, setRepoFiles] = useState<RepoFile[]>([]);
@@ -22,6 +24,8 @@ const App: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isAiThinking, setIsAiThinking] = useState<boolean>(false);
   const [isApiKeySelected, setIsApiKeySelected] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<ActiveTab>('codeViewer'); // New state for active tab
+  const [showRepoInputModal, setShowRepoInputModal] = useState<boolean>(false); // New state for repo input modal
 
   // Helper to ensure context is always used within a provider
   const useContextValue = (): AppContextType => {
@@ -54,6 +58,10 @@ const App: React.FC = () => {
       fetchFileContent,
       sendMessageToAI,
       clearState,
+      activeTab,
+      setActiveTab,
+      showRepoInputModal,
+      setShowRepoInputModal,
     };
   };
 
@@ -68,6 +76,7 @@ const App: React.FC = () => {
     setErrorMessage(null);
     setChatMessages([]);
     setIsAiThinking(false);
+    setActiveTab('codeViewer'); // Reset active tab
   }, []);
 
   const fetchRepo = useCallback(async (url: string) => {
@@ -76,6 +85,7 @@ const App: React.FC = () => {
     setChatMessages([]); // Clear chat on new repo fetch
     setSelectedFilePath(null); // Clear selected file
     setCurrentFileContent(null); // Clear file content
+    setActiveTab('codeViewer'); // Default to code viewer after fetching repo
 
     try {
       const githubUrlRegex = /^https:\/\/github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)(\/.*)?$/;
@@ -95,10 +105,12 @@ const App: React.FC = () => {
       const files = await fetchRepoTree(owner, repo, defaultBranch);
       setRepoFiles(files);
       setErrorMessage(null); // Clear error if successful
+      setShowRepoInputModal(false); // Close modal on successful fetch
     } catch (err: any) {
       console.error('Failed to fetch repository:', err);
       setErrorMessage(err.message || 'Failed to fetch repository. Please check the URL and try again.');
       setRepoFiles([]); // Clear files on error
+      setShowRepoInputModal(true); // Keep modal open if there was an error
     } finally {
       setIsLoading(false);
     }
@@ -134,11 +146,14 @@ const App: React.FC = () => {
     try {
       const content = await fetchGitHubFileContent(fileToFetch.url);
       setCurrentFileContent(content);
+      setSelectedFilePath(filePath); // Set selected path only on successful content fetch
+      setActiveTab('codeViewer'); // Automatically switch to Code Viewer tab
       setErrorMessage(null);
     } catch (err: any) {
       console.error(`Failed to fetch content for ${filePath}:`, err);
       setErrorMessage(err.message || `Failed to fetch content for ${filePath}.`);
       setCurrentFileContent(null);
+      setSelectedFilePath(null); // Clear selected path on error
     } finally {
       setIsLoading(false);
     }
@@ -169,8 +184,20 @@ const App: React.FC = () => {
     }
   }, [chatMessages, setIsApiKeySelected]); // Dependency on chatMessages to correctly append
 
+  // Auto-show RepoInput modal if no repo is loaded
+  useEffect(() => {
+    if (!repoFiles.length && !isLoading && !errorMessage) {
+      setShowRepoInputModal(true);
+    }
+  }, [repoFiles.length, isLoading, errorMessage]);
+
   // Provide the context value to the entire application.
   const contextValue = useContextValue();
+
+  const mainTabs = [
+    { id: 'codeViewer' as ActiveTab, title: 'Code Viewer', content: <CodeViewer /> },
+    { id: 'aiAssistant' as ActiveTab, title: 'AI Assistant', content: <ChatInterface /> },
+  ];
 
   return (
     <AppContext.Provider value={contextValue}>
@@ -179,28 +206,44 @@ const App: React.FC = () => {
           <ApiKeyChecker />
         </div>
       ) : (
-        <div className="flex flex-col h-screen overflow-hidden">
-          <header className="bg-gray-800 text-gray-100 p-4 shadow-md z-20">
-            <h1 className="text-2xl font-bold">GitHub Code Analyzer</h1>
+        <div className="flex flex-col h-screen overflow-hidden bg-gray-900 animate-fade-in">
+          <header className="bg-gradient-to-r from-gray-900 to-gray-800 text-gray-100 py-4 px-8 shadow-lg z-20 flex items-center justify-between">
+            <h1 className="text-4xl font-bold tracking-wider">GitHub Code Analyzer</h1>
+            {repoFiles.length > 0 && (
+              <button
+                onClick={() => setShowRepoInputModal(true)}
+                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl shadow-md transition-all duration-200 ease-in-out hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2 focus:ring-offset-gray-900"
+                aria-label="Change Repository"
+              >
+                Change Repository
+              </button>
+            )}
           </header>
-
-          <RepoInput />
 
           <div className="flex-1 flex overflow-hidden">
             {/* File Tree Sidebar */}
-            <div className="w-1/4 bg-gray-800 border-r border-gray-700 flex-shrink-0 overflow-hidden">
-              <h2 className="text-lg font-semibold text-gray-100 p-4 sticky top-0 bg-gray-800 z-10 border-b border-gray-700">Files ({repoName || 'Repository'})</h2>
+            <div className="w-80 flex-shrink-0 bg-gray-800 border-r border-gray-700 overflow-hidden">
+              <h2 className="text-xl font-semibold text-gray-100 p-4 sticky top-0 bg-gray-800 z-10 border-b border-gray-700">Files ({repoName || 'Repository'})</h2>
               <FileTree />
             </div>
 
-            {/* Code Viewer */}
-            <CodeViewer />
-
-            {/* Chat Interface */}
-            <div className="w-1/3 bg-gray-800 border-l border-gray-700 flex-shrink-0 overflow-hidden">
-              <ChatInterface />
+            {/* Main Content Area with Tabs */}
+            <div className="flex-1 min-w-0">
+              <Tabs tabs={mainTabs} activeTab={activeTab} onTabChange={setActiveTab} />
             </div>
           </div>
+
+          <Modal
+            isOpen={showRepoInputModal}
+            onClose={() => setShowRepoInputModal(false)}
+            title="Load GitHub Repository"
+            className="md:max-w-3xl"
+          >
+            <RepoInput
+              onClose={() => setShowRepoInputModal(false)}
+              onRepoFetched={() => setShowRepoInputModal(false)}
+            />
+          </Modal>
         </div>
       )}
     </AppContext.Provider>

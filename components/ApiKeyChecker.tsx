@@ -2,28 +2,25 @@ import React, { useEffect, useState, useContext } from 'react';
 import { AppContext } from '../App';
 
 /**
- * Declares the `window.aistudio` interface for TypeScript,
- * as it's assumed to be pre-configured and globally available.
+ * The `window.aistudio` interface is assumed to be pre-configured and globally available
+ * in the execution context, as per coding guidelines.
+ * Therefore, an explicit `declare global` block within this component is not needed
+ * and can lead to declaration conflicts.
  */
-// Fix: Define the AIStudio interface explicitly to resolve type conflicts
-declare global {
-  interface AIStudio {
-    hasSelectedApiKey: () => Promise<boolean>;
-    openSelectKey: () => Promise<void>;
-  }
-
-  interface Window {
-    aistudio: AIStudio;
-  }
-}
 
 const ApiKeyChecker: React.FC = () => {
-  const { isApiKeySelected, setIsApiKeySelected, setErrorMessage } = useContext(AppContext);
+  // Fix: Ensure AppContext is not undefined by checking it before destructuring.
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error('ApiKeyChecker must be used within an AppContext.Provider');
+  }
+  const { isApiKeySelected, setIsApiKeySelected, setErrorMessage } = context;
   const [checkingKey, setCheckingKey] = useState(true);
 
   const checkAndPromptApiKey = async () => {
     setCheckingKey(true);
     setErrorMessage(null);
+    // Fix: Access window.aistudio directly as it's assumed to be globally available.
     if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
       try {
         const selected = await window.aistudio.hasSelectedApiKey();
@@ -45,6 +42,7 @@ const ApiKeyChecker: React.FC = () => {
 
   const handleSelectKey = async () => {
     setErrorMessage(null);
+    // Fix: Access window.aistudio directly as it's assumed to be globally available.
     if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
       try {
         await window.aistudio.openSelectKey();
@@ -62,45 +60,49 @@ const ApiKeyChecker: React.FC = () => {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     checkAndPromptApiKey();
   }, []); // Run once on mount
 
   if (checkingKey) {
     return (
-      <div className="flex flex-col items-center justify-center p-6 bg-gray-800 rounded-lg shadow-lg text-gray-300">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
-        <p className="text-lg">Checking API key availability...</p>
+      <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center animate-fade-in">
+        <div className="flex flex-col items-center justify-center p-10 bg-gray-900 rounded-2xl shadow-2xl text-gray-300 animate-scale-in">
+          <div className="animate-spin rounded-full h-14 w-14 border-t-4 border-b-4 border-indigo-500 mb-6"></div>
+          <p className="text-xl font-medium">Checking API key availability...</p>
+        </div>
       </div>
     );
   }
 
   if (!isApiKeySelected) {
     return (
-      <div className="flex flex-col items-center justify-center p-6 bg-red-900 rounded-lg shadow-lg text-white">
-        <p className="text-lg font-semibold mb-4 text-center">
-          A paid API Key is required for advanced Gemini models (like `gemini-3-pro-preview`).
-        </p>
-        <p className="mb-4 text-center">
-          Please select an API key from a paid GCP project to proceed.
-        </p>
-        <button
-          onClick={handleSelectKey}
-          className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-md transition duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-red-900"
-        >
-          Select API Key
-        </button>
-        <p className="mt-4 text-sm text-gray-200 text-center">
-          More info on billing:{" "}
-          <a
-            href="https://ai.google.dev/gemini-api/docs/billing"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-indigo-300 hover:underline"
+      <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center animate-fade-in">
+        <div className="flex flex-col items-center justify-center p-10 bg-gray-900 rounded-2xl shadow-2xl text-white max-w-lg text-center border border-indigo-600 animate-scale-in">
+          <p className="text-3xl font-bold mb-4 text-indigo-400">
+            API Key Required
+          </p>
+          <p className="mb-6 text-lg text-gray-200">
+            A paid API Key is essential for utilizing advanced Gemini models (like `gemini-3-pro-preview`).
+            Please select an API key from a paid Google Cloud Project to proceed.
+          </p>
+          <button
+            onClick={handleSelectKey}
+            className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-lg rounded-xl shadow-lg transition duration-200 ease-in-out focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900"
           >
-            ai.google.dev/gemini-api/docs/billing
-          </a>
-        </p>
+            Select API Key
+          </button>
+          <p className="mt-6 text-sm text-gray-400">
+            For more information on billing, visit:{" "}
+            <a
+              href="https://ai.google.dev/gemini-api/docs/billing"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-indigo-300 hover:underline font-medium"
+            >
+              ai.google.dev/gemini-api/docs/billing
+            </a>
+          </p>
+        </div>
       </div>
     );
   }

@@ -12,6 +12,8 @@ export interface ChatMessage {
   text: string;
 }
 
+export type ActiveTab = 'codeViewer' | 'aiAssistant';
+
 export interface AppContextType {
   repoUrl: string;
   setRepoUrl: (url: string) => void;
@@ -38,4 +40,8 @@ export interface AppContextType {
   fetchFileContent: (filePath: string) => Promise<void>;
   sendMessageToAI: (userQuery: string, contextCode: string | null) => Promise<void>;
   clearState: () => void;
+  activeTab: ActiveTab;
+  setActiveTab: (tab: ActiveTab) => void;
+  showRepoInputModal: boolean;
+  setShowRepoInputModal: (show: boolean) => void;
 }

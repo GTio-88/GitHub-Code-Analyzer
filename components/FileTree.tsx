@@ -42,16 +42,18 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ file, level }) => {
   return (
     <div>
       <div
-        style={{ paddingLeft: `${level * 10}px` }}
-        className={`flex items-center cursor-pointer py-1 px-2 rounded-md transition-colors duration-150
-          ${isSelected ? 'bg-indigo-700 text-white' : 'hover:bg-gray-700'}
-          ${file.type === 'file' ? 'text-gray-200' : 'text-gray-100 font-semibold'}
+        style={{ paddingLeft: `${level * 20}px` }} /* Increased indentation */
+        className={`flex items-center cursor-pointer py-2.5 px-3 rounded-md transition-all duration-150 text-base font-medium
+          ${isSelected ? 'bg-indigo-700 text-white shadow-md' : 'hover:bg-gray-700 text-gray-200 hover:text-indigo-200'}
         `}
         onClick={() => handleFileClick(file.path)}
+        role="treeitem"
+        aria-selected={isSelected}
+        aria-expanded={file.type === 'dir' ? isOpen : undefined}
       >
         {file.type === 'dir' && (
           <svg
-            className={`w-4 h-4 mr-2 transform transition-transform ${isOpen ? 'rotate-90' : ''}`}
+            className={`w-5 h-5 mr-2 transform transition-transform duration-200 ${isOpen ? 'rotate-90' : ''} text-indigo-300`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -61,7 +63,7 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ file, level }) => {
           </svg>
         )}
         {file.type === 'file' && (
-          <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+          <svg className="w-5 h-5 mr-2 text-gray-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
             <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 10a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm0-3a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm0-3a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1z" clipRule="evenodd"></path>
           </svg>
         )}
@@ -71,7 +73,7 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ file, level }) => {
         )}
       </div>
       {isOpen && file.children && (
-        <div className="ml-2">
+        <div className="ml-2" role="group">
           {file.children
             .sort((a, b) => {
               if (a.type === 'dir' && b.type === 'file') return -1;
@@ -91,19 +93,34 @@ const FileTree: React.FC = () => {
   const { repoFiles, isLoading, errorMessage } = useContext(AppContext);
 
   if (isLoading && !repoFiles.length) {
-    return <div className="p-4 text-gray-400">Loading repository files...</div>;
+    return (
+      <div className="p-4 text-gray-400 flex items-center justify-center h-full">
+        <div className="flex flex-col items-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500 mb-3"></div>
+          <p className="text-lg">Loading repository files...</p>
+        </div>
+      </div>
+    );
   }
 
   if (errorMessage && !repoFiles.length) {
-    return <div className="p-4 text-red-400">Error: {errorMessage}</div>;
+    return (
+      <div className="p-4 text-red-500 flex items-center justify-center h-full text-center text-lg font-medium" role="alert">
+        <p>Error loading files: {errorMessage}</p>
+      </div>
+    );
   }
 
   if (!repoFiles || repoFiles.length === 0) {
-    return <div className="p-4 text-gray-400">Enter a GitHub URL to view its files.</div>;
+    return (
+      <div className="p-4 text-gray-400 flex items-center justify-center h-full text-center text-lg">
+        <p>Enter a GitHub URL to view its files.</p>
+      </div>
+    );
   }
 
   return (
-    <div className="p-4 bg-gray-800 h-full overflow-y-auto custom-scrollbar">
+    <div className="p-4 bg-gray-800 h-full overflow-y-auto custom-scrollbar" role="tree" aria-label="Repository Files">
       {repoFiles
         .sort((a, b) => {
           if (a.type === 'dir' && b.type === 'file') return -1;

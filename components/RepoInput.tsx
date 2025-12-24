@@ -1,7 +1,12 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { AppContext } from '../App';
 
-const RepoInput: React.FC = () => {
+interface RepoInputProps {
+  onClose: () => void;
+  onRepoFetched: () => void;
+}
+
+const RepoInput: React.FC<RepoInputProps> = ({ onClose, onRepoFetched }) => {
   const {
     repoUrl,
     setRepoUrl,
@@ -14,12 +19,13 @@ const RepoInput: React.FC = () => {
   const [inputUrl, setInputUrl] = useState(repoUrl);
 
   useEffect(() => {
-    setInputUrl(repoUrl); // Sync internal state if context changes
+    // Sync internal state if context changes (e.g., clearState is called)
+    setInputUrl(repoUrl);
   }, [repoUrl]);
 
   const handleFetchClick = async () => {
     setErrorMessage(null); // Clear previous errors
-    if (!inputUrl) {
+    if (!inputUrl.trim()) {
       setErrorMessage("Please enter a GitHub repository URL.");
       return;
     }
@@ -34,49 +40,64 @@ const RepoInput: React.FC = () => {
 
     setRepoUrl(inputUrl);
     await fetchRepo(inputUrl);
+
+    // If fetchRepo was successful (no errorMessage set by fetchRepo), close the modal
+    if (!errorMessage) { // errorMessage state check after async call
+      onRepoFetched();
+    }
   };
 
   const handleClearClick = () => {
     setInputUrl('');
     clearState();
+    // Keep modal open if clearing, user might want to enter a new URL
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter' && !isLoading) {
+      event.preventDefault(); // Prevent form submission
       handleFetchClick();
     }
   };
 
   return (
-    <div className="flex flex-col gap-3 p-4 bg-gray-800 border-b border-gray-700">
-      <h2 className="text-xl font-semibold text-gray-100 mb-2">GitHub Repository</h2>
-      <div className="flex gap-2">
+    <div className="flex flex-col gap-6">
+      <h2 className="text-2xl font-semibold text-gray-100">Enter GitHub Repository URL</h2>
+      <div className="flex flex-col md:flex-row gap-4">
         <input
           type="text"
           value={inputUrl}
           onChange={(e) => setInputUrl(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="e.g., https://github.com/facebook/react"
-          className="flex-grow p-2 rounded-md bg-gray-700 text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 border border-transparent focus:border-indigo-500"
+          placeholder="e.g., https://github.com/google/gemini-api-cookbook (public repo)"
+          className="flex-grow p-4 h-14 rounded-lg bg-gray-700 text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 border border-transparent focus:border-indigo-600 transition-colors duration-200 text-base"
           disabled={isLoading}
+          aria-label="GitHub repository URL input"
         />
-        <button
-          onClick={handleFetchClick}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md shadow-md transition duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800"
-          disabled={isLoading}
-        >
-          {isLoading ? 'Fetching...' : 'Fetch Repo'}
-        </button>
-        <button
-          onClick={handleClearClick}
-          className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md shadow-md transition duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-800"
-          disabled={isLoading}
-        >
-          Clear
-        </button>
+        <div className="flex gap-4">
+          <button
+            onClick={handleFetchClick}
+            className="px-6 py-3 h-14 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-all duration-200 ease-in-out hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2 focus:ring-offset-gray-900 whitespace-nowrap"
+            disabled={isLoading}
+            aria-label="Fetch Repository"
+          >
+            {isLoading ? 'Fetching...' : 'Fetch Repo'}
+          </button>
+          <button
+            onClick={handleClearClick}
+            className="px-6 py-3 h-14 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-xl shadow-lg transition-all duration-200 ease-in-out hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-900 whitespace-nowrap"
+            disabled={isLoading}
+            aria-label="Clear Input"
+          >
+            Clear
+          </button>
+        </div>
       </div>
       {errorMessage && (
-        <p className="text-red-400 text-sm">{errorMessage}</p>
+        <p className="text-red-500 text-sm flex items-center gap-2 font-medium" role="alert">
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"></path></svg>
+          {errorMessage}
+        </p>
       )}
     </div>
   );
