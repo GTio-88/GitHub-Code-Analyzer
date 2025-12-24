@@ -1,0 +1,5 @@
+{
+  "name": "GitHub Code Analyzer ",
+  "description": "An interactive web application that fetches code from GitHub repositories, displays it, and allows users to query a Gemini AI model for code analysis, error checking, improvement suggestions, and UI/UX design advice. The AI provides copy-pastable solutions without modifying files directly.",
+  "requestFramePermissions": []
+}
