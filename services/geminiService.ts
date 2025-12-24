@@ -1,53 +1,107 @@
 import { GoogleGenAI } from '@google/genai';
-import { ChatMessage } from '../types';
+import { RepoFile } from '../types'; // Import RepoFile type
+
+/**
+ * Recursively builds a textual representation of the file tree.
+ * @param files The array of RepoFile objects (can be children of a directory).
+ * @param indent The current indentation string for formatting.
+ * @returns A string representing the file tree.
+ */
+function buildFileTreeString(files: RepoFile[], indent: string = ''): string {
+  let tree = '';
+  // Sort directories first, then files, both alphabetically
+  const sortedFiles = [...files].sort((a, b) => {
+    if (a.type === 'dir' && b.type === 'file') return -1;
+    if (a.type === 'file' && b.type === 'dir') return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  sortedFiles.forEach(file => {
+    tree += `${indent}${file.type === 'dir' ? '📁' : '📄'} ${file.name}\n`;
+    if (file.type === 'dir' && file.children && file.children.length > 0) {
+      tree += buildFileTreeString(file.children, indent + '  ');
+    }
+  });
+  return tree;
+}
+
 
 /**
  * Constructs a detailed prompt for the Gemini AI based on the provided code context and user query.
- * @param codeContext The code content to be analyzed.
+ * @param repoFiles The complete file tree of the repository.
+ * @param selectedFilePath The path of the currently selected file.
+ * @param currentFileContent The content of the currently selected file.
  * @param userQuery The user's specific question or request.
  * @returns The complete prompt string.
  */
-function buildGeminiPrompt(codeContext: string | null, userQuery: string): string {
-  const codeSection = codeContext
-    ? `
+function buildGeminiPrompt(
+  repoFiles: RepoFile[],
+  selectedFilePath: string | null,
+  currentFileContent: string | null,
+  userQuery: string
+): string {
+  let fileTreeSection = '';
+  if (repoFiles && repoFiles.length > 0) {
+    fileTreeSection = `
 ---
-**GitHub Repository Code Context:**
+**GitHub Repository File Structure:**
 
 \`\`\`
-${codeContext}
+${buildFileTreeString(repoFiles)}
+\`\`\`
+
+---
+`;
+  }
+
+  const selectedFileContentSection = currentFileContent && selectedFilePath
+    ? `
+---
+**Currently Selected File: \`${selectedFilePath}\` Content:**
+
+\`\`\`
+${currentFileContent}
 \`\`\`
 
 ---
 `
     : '';
 
-  return `You are an expert React frontend engineer and AI assistant. Your task is to analyze user-provided code from a GitHub repository, identify potential errors, suggest improvements, propose design enhancements, and resolve problems. You will provide your analysis and suggestions based on the provided code and the user's specific questions.
+  return `You are an expert React frontend engineer and AI assistant. Your task is to analyze user-provided code from a GitHub repository, identify potential errors, suggest improvements, propose design enhancements, and resolve problems. You will provide your analysis and suggestions based on the provided code, the repository's overall structure, and the user's specific questions.
 
+${fileTreeSection}
+${selectedFileContentSection}
 ---
 **User's Question:**
 
 ${userQuery}
 
 ---
-${codeSection}
 **Instructions for your response:**
-1.  **Do NOT make any changes to the files.** Your output should be purely textual analysis, suggestions, or solutions.
-2.  Format your response clearly, using Markdown for code blocks, bullet points, and headings.
-3.  Be thorough and actionable. If you identify a problem, explain why it's a problem and suggest concrete ways to fix it or improve it.
-4.  If the user asks for design suggestions, describe them verbally.
-5.  Assume this response will be copied and pasted into another AI Studio chat or used by the user to manually apply changes.
+1.  **Your analysis should consider the full repository structure provided in the 'GitHub Repository File Structure' section, along with the 'Currently Selected File' content if present.**
+2.  **Do NOT make any changes to the files.** Your output should be purely textual analysis, suggestions, or solutions.
+3.  Format your response clearly, using Markdown for code blocks, bullet points, and headings.
+4.  Be thorough and actionable. If you identify a problem, explain why it's a problem and suggest concrete ways to fix it or improve it.
+5.  If the user asks for design suggestions, describe them verbally.
 6.  The AI will generate straight away a message so the user can copy and paste it to AI studio chat.
 `;
 }
 
 /**
  * Sends a code analysis request to the Gemini AI model and processes the response.
- * @param code The code context to send to the AI.
+ * @param repoFiles The complete file tree of the repository.
+ * @param selectedFilePath The path of the currently selected file.
+ * @param currentFileContent The content of the currently selected file.
  * @param userQuery The user's question about the code.
  * @returns The AI's generated response text.
  * @throws Error if the API key is missing or the Gemini API call fails.
  */
-export async function analyzeCodeWithGemini(code: string | null, userQuery: string): Promise<string> {
+export async function analyzeCodeWithGemini(
+  repoFiles: RepoFile[],
+  selectedFilePath: string | null,
+  currentFileContent: string | null,
+  userQuery: string
+): Promise<string> {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
     throw new Error('Gemini API key is not configured.');
@@ -56,7 +110,7 @@ export async function analyzeCodeWithGemini(code: string | null, userQuery: stri
   // Create a new GoogleGenAI instance right before making an API call to ensure it always uses the most up-to-date API key.
   const ai = new GoogleGenAI({ apiKey: apiKey });
 
-  const prompt = buildGeminiPrompt(code, userQuery);
+  const prompt = buildGeminiPrompt(repoFiles, selectedFilePath, currentFileContent, userQuery);
 
   try {
     const response = await ai.models.generateContent({

@@ -8,8 +8,7 @@ const ChatInterface: React.FC = () => {
     chatMessages,
     sendMessageToAI,
     isAiThinking,
-    currentFileContent,
-    selectedFilePath,
+    selectedFilePath, // Used for placeholder text
     errorMessage,
     repoFiles,
   } = useContext(AppContext);
@@ -28,11 +27,9 @@ const ChatInterface: React.FC = () => {
 
     setUserQuery(''); // Clear input
 
-    // Only send the current file content if a file is selected
-    const contextCode = selectedFilePath ? currentFileContent : null;
-
     try {
-      await sendMessageToAI(userQuery.trim(), contextCode);
+      // Pass only userQuery, App.tsx's sendMessageToAI will gather full context
+      await sendMessageToAI(userQuery.trim());
     } catch (error) {
       console.error("Error sending message to AI:", error);
       // Error message will be handled by App.tsx's `setErrorMessage`

@@ -22,7 +22,7 @@ const RepoInput: React.FC<RepoInputProps> = ({ onClose, onRepoFetched }) => {
   const [patInput, setPatInput] = useState(githubPat || ''); // New: State for PAT input
 
   useEffect(() => {
-    // Sync internal state if context changes (e.g., clearState is called)
+    // Sync internal state if context changes (e.g., clearState is called or App loads a stored repo)
     setInputUrl(repoUrl);
     setPatInput(githubPat || ''); // Sync PAT input as well
   }, [repoUrl, githubPat]);
@@ -44,10 +44,11 @@ const RepoInput: React.FC<RepoInputProps> = ({ onClose, onRepoFetched }) => {
     }
 
     setRepoUrl(inputUrl);
-    setGithubPat(patInput.trim() || null); // Set PAT to context before fetching
+    const patToSend = patInput.trim() || null;
+    setGithubPat(patToSend); // Set PAT to context before fetching (important for fetchFileContent)
     
-    // Call fetchRepo and directly check its return value
-    const success = await fetchRepo(inputUrl);
+    // Call fetchRepo and directly check its return value, passing PAT as argument
+    const success = await fetchRepo(inputUrl, patToSend);
 
     // If fetchRepo was successful, close the modal
     if (success) { 

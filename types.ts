@@ -38,9 +38,9 @@ export interface AppContextType {
   setIsApiKeySelected: (selected: boolean) => void;
   githubPat: string | null; // New: GitHub Personal Access Token
   setGithubPat: (pat: string | null) => void; // New: Setter for PAT
-  fetchRepo: (url: string) => Promise<boolean>; // Changed to return boolean
+  fetchRepo: (url: string, pat: string | null) => Promise<boolean>; // Changed to return boolean and accept pat
   fetchFileContent: (filePath: string) => Promise<void>;
-  sendMessageToAI: (userQuery: string, contextCode: string | null) => Promise<void>;
+  sendMessageToAI: (userQuery: string) => Promise<void>; // Updated signature: removed contextCode
   clearState: () => void;
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;

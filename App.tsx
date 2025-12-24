@@ -13,7 +13,12 @@ import { analyzeCodeWithGemini } from './services/geminiService';
 export const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const App: React.FC = () => {
-  const [repoUrl, setRepoUrl] = useState<string>('https://github.com/google/gemini-api-cookbook');
+  // Initialize repoUrl and githubPat from localStorage
+  const [repoUrl, setRepoUrl] = useState<string>(() => localStorage.getItem('lastRepoUrl') || '');
+  const [githubPat, setGithubPat] = useState<string | null>(() => {
+    const storedPat = localStorage.getItem('lastGithubPat');
+    return storedPat === '' ? null : storedPat; // Ensure empty string becomes null
+  });
   const [repoOwner, setRepoOwner] = useState<string>('');
   const [repoName, setRepoName] = useState<string>('');
   const [repoFiles, setRepoFiles] = useState<RepoFile[]>([]);
@@ -24,8 +29,7 @@ const App: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isAiThinking, setIsAiThinking] = useState<boolean>(false);
   const [isApiKeySelected, setIsApiKeySelected] = useState<boolean>(false);
-  const [githubPat, setGithubPat] = useState<string | null>(null); // New state for GitHub PAT
-  const [activeTab, setActiveTab] = useState<ActiveTab>('aiAssistant'); // Changed default to 'aiAssistant'
+  const [activeTab, setActiveTab] = useState<ActiveTab>('aiAssistant');
   const [showRepoInputModal, setShowRepoInputModal] = useState<boolean>(false);
 
   // Helper to ensure context is always used within a provider
@@ -55,9 +59,9 @@ const App: React.FC = () => {
       setIsAiThinking,
       isApiKeySelected,
       setIsApiKeySelected,
-      githubPat, // New: Add githubPat to context
-      setGithubPat, // New: Add setGithubPat to context
-      fetchRepo, // Now returns Promise<boolean>
+      githubPat,
+      setGithubPat,
+      fetchRepo,
       fetchFileContent,
       sendMessageToAI,
       clearState,
@@ -79,21 +83,23 @@ const App: React.FC = () => {
     setErrorMessage(null);
     setChatMessages([]);
     setIsAiThinking(false);
-    setIsApiKeySelected(false); // Reset API key selection as well on clear
-    setGithubPat(null); // Clear PAT on clear state
-    setActiveTab('aiAssistant'); // Reset to 'aiAssistant' on clear
+    setIsApiKeySelected(false);
+    setGithubPat(null);
+    setActiveTab('aiAssistant');
+    // Clear localStorage on state clear
+    localStorage.removeItem('lastRepoUrl');
+    localStorage.removeItem('lastGithubPat');
   }, []);
 
-  const fetchRepo = useCallback(async (url: string): Promise<boolean> => { // Updated return type
+  const fetchRepo = useCallback(async (url: string, pat: string | null): Promise<boolean> => {
     setIsLoading(true);
     setErrorMessage(null);
     setChatMessages([]);
     setSelectedFilePath(null);
     setCurrentFileContent(null);
-    setActiveTab('aiAssistant'); // Ensure AI Assistant is active after fetching repo
+    setActiveTab('aiAssistant');
     
     try {
-      // Updated regex to correctly extract owner and repo name, ignoring optional .git suffix
       const githubUrlRegex = /^https:\/\/github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+?)(\.git)?(\/.*)?$/;
       const match = url.match(githubUrlRegex);
 
@@ -102,28 +108,35 @@ const App: React.FC = () => {
       }
 
       const owner = match[1];
-      const repo = match[2]; // Repository name is now correctly extracted without .git
+      const repo = match[2];
 
       setRepoOwner(owner);
       setRepoName(repo);
 
-      // Pass githubPat to fetchDefaultBranch and fetchRepoTree
-      const defaultBranch = await fetchDefaultBranch(owner, repo, githubPat);
-      const files = await fetchRepoTree(owner, repo, defaultBranch, githubPat);
+      const defaultBranch = await fetchDefaultBranch(owner, repo, pat);
+      const files = await fetchRepoTree(owner, repo, defaultBranch, pat);
       setRepoFiles(files);
       setErrorMessage(null);
       setShowRepoInputModal(false);
-      return true; // Indicate success
+
+      // Save to localStorage on successful fetch
+      localStorage.setItem('lastRepoUrl', url);
+      localStorage.setItem('lastGithubPat', pat || '');
+
+      return true;
     } catch (err: any) {
       console.error('Failed to fetch repository:', err);
       setErrorMessage(err.message || 'Failed to fetch repository. Please check the URL and try again.');
       setRepoFiles([]);
       setShowRepoInputModal(true);
-      return false; // Indicate failure
+      // Clear localStorage on failure to prevent repeated failures
+      localStorage.removeItem('lastRepoUrl');
+      localStorage.removeItem('lastGithubPat');
+      return false;
     } finally {
       setIsLoading(false);
     }
-  }, [githubPat]); // Add githubPat to dependencies
+  }, []); // No dependencies for useCallback, as all needed values are passed as arguments or come from state setters
 
   const fetchFileContent = useCallback(async (filePath: string) => {
     setIsLoading(true);
@@ -152,11 +165,10 @@ const App: React.FC = () => {
     }
 
     try {
-      // Pass githubPat to fetchGitHubFileContent
-      const content = await fetchGitHubFileContent(fileToFetch.url, githubPat);
+      const content = await fetchGitHubFileContent(fileToFetch.url, githubPat); // Use githubPat from state
       setCurrentFileContent(content);
       setSelectedFilePath(filePath);
-      setActiveTab('codeViewer'); // Switch to code viewer when a file is selected
+      setActiveTab('codeViewer');
       setErrorMessage(null);
     } catch (err: any) {
       console.error(`Failed to fetch content for ${filePath}:`, err);
@@ -166,16 +178,16 @@ const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [repoFiles, githubPat]); // Add githubPat to dependencies
+  }, [repoFiles, githubPat]);
 
-  const sendMessageToAI = useCallback(async (userQuery: string, contextCode: string | null) => {
+  const sendMessageToAI = useCallback(async (userQuery: string) => {
     setIsAiThinking(true);
     setErrorMessage(null);
     const updatedMessages: ChatMessage[] = [...chatMessages, { role: 'user', text: userQuery }];
     setChatMessages(updatedMessages);
 
     try {
-      const aiResponseText = await analyzeCodeWithGemini(contextCode, userQuery);
+      const aiResponseText = await analyzeCodeWithGemini(repoFiles, selectedFilePath, currentFileContent, userQuery);
       setChatMessages((prevMessages) => [
         ...prevMessages,
         { role: 'ai', text: aiResponseText },
@@ -190,13 +202,45 @@ const App: React.FC = () => {
     } finally {
       setIsAiThinking(false);
     }
-  }, [chatMessages, setIsApiKeySelected]);
+  }, [chatMessages, setIsApiKeySelected, repoFiles, selectedFilePath, currentFileContent]);
 
+  // Effect to load the stored repo on initial mount
   useEffect(() => {
-    if (!repoFiles.length && !isLoading && !errorMessage) {
+    const storedRepoUrl = localStorage.getItem('lastRepoUrl');
+    const storedGithubPat = localStorage.getItem('lastGithubPat');
+
+    if (storedRepoUrl) {
+      setRepoUrl(storedRepoUrl); // Set state to reflect stored URL
+      const patToUse = storedGithubPat === '' ? null : storedGithubPat;
+      setGithubPat(patToUse); // Set state to reflect stored PAT
+
+      const loadStoredRepo = async () => {
+        setIsLoading(true);
+        setErrorMessage(null);
+        setChatMessages([]);
+        setSelectedFilePath(null);
+        setCurrentFileContent(null);
+        setActiveTab('aiAssistant');
+
+        try {
+          const success = await fetchRepo(storedRepoUrl, patToUse); // Pass stored PAT directly
+          if (!success) {
+            // fetchRepo already handles setting error message and showing modal on failure
+          }
+        } catch (error) {
+          console.error("Unexpected error during initial repo load:", error);
+          setErrorMessage("An unexpected error occurred while loading the previous repository.");
+          setShowRepoInputModal(true);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      loadStoredRepo();
+    } else {
+      // If no stored URL, show the input modal for first-time use
       setShowRepoInputModal(true);
     }
-  }, [repoFiles.length, isLoading, errorMessage]);
+  }, [fetchRepo]); // Depend on fetchRepo to ensure it's available
 
   const contextValue = useContextValue();
 
