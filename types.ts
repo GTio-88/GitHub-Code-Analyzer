@@ -36,6 +36,8 @@ export interface AppContextType {
   setIsAiThinking: (thinking: boolean) => void;
   isApiKeySelected: boolean;
   setIsApiKeySelected: (selected: boolean) => void;
+  githubPat: string | null; // New: GitHub Personal Access Token
+  setGithubPat: (pat: string | null) => void; // New: Setter for PAT
   fetchRepo: (url: string) => Promise<void>;
   fetchFileContent: (filePath: string) => Promise<void>;
   sendMessageToAI: (userQuery: string, contextCode: string | null) => Promise<void>;

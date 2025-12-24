@@ -4,8 +4,8 @@ import FileTree from './components/FileTree';
 import CodeViewer from './components/CodeViewer';
 import ChatInterface from './components/ChatInterface';
 import ApiKeyChecker from './components/ApiKeyChecker';
-import Modal from './components/Modal'; // New import
-import Tabs from './components/Tabs'; // New import
+import Modal from './components/Modal';
+import Tabs from './components/Tabs';
 import { RepoFile, ChatMessage, AppContextType, ActiveTab } from './types';
 import { fetchDefaultBranch, fetchRepoTree, fetchFileContent as fetchGitHubFileContent } from './services/githubService';
 import { analyzeCodeWithGemini } from './services/geminiService';
@@ -24,8 +24,9 @@ const App: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isAiThinking, setIsAiThinking] = useState<boolean>(false);
   const [isApiKeySelected, setIsApiKeySelected] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<ActiveTab>('codeViewer'); // New state for active tab
-  const [showRepoInputModal, setShowRepoInputModal] = useState<boolean>(false); // New state for repo input modal
+  const [githubPat, setGithubPat] = useState<string | null>(null); // New state for GitHub PAT
+  const [activeTab, setActiveTab] = useState<ActiveTab>('codeViewer');
+  const [showRepoInputModal, setShowRepoInputModal] = useState<boolean>(false);
 
   // Helper to ensure context is always used within a provider
   const useContextValue = (): AppContextType => {
@@ -54,6 +55,8 @@ const App: React.FC = () => {
       setIsAiThinking,
       isApiKeySelected,
       setIsApiKeySelected,
+      githubPat, // New: Add githubPat to context
+      setGithubPat, // New: Add setGithubPat to context
       fetchRepo,
       fetchFileContent,
       sendMessageToAI,
@@ -76,16 +79,18 @@ const App: React.FC = () => {
     setErrorMessage(null);
     setChatMessages([]);
     setIsAiThinking(false);
-    setActiveTab('codeViewer'); // Reset active tab
+    setIsApiKeySelected(false); // Reset API key selection as well on clear
+    setGithubPat(null); // Clear PAT on clear state
+    setActiveTab('codeViewer');
   }, []);
 
   const fetchRepo = useCallback(async (url: string) => {
     setIsLoading(true);
     setErrorMessage(null);
-    setChatMessages([]); // Clear chat on new repo fetch
-    setSelectedFilePath(null); // Clear selected file
-    setCurrentFileContent(null); // Clear file content
-    setActiveTab('codeViewer'); // Default to code viewer after fetching repo
+    setChatMessages([]);
+    setSelectedFilePath(null);
+    setCurrentFileContent(null);
+    setActiveTab('codeViewer');
 
     try {
       const githubUrlRegex = /^https:\/\/github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)(\/.*)?$/;
@@ -101,27 +106,27 @@ const App: React.FC = () => {
       setRepoOwner(owner);
       setRepoName(repo);
 
-      const defaultBranch = await fetchDefaultBranch(owner, repo);
-      const files = await fetchRepoTree(owner, repo, defaultBranch);
+      // Pass githubPat to fetchDefaultBranch and fetchRepoTree
+      const defaultBranch = await fetchDefaultBranch(owner, repo, githubPat);
+      const files = await fetchRepoTree(owner, repo, defaultBranch, githubPat);
       setRepoFiles(files);
-      setErrorMessage(null); // Clear error if successful
-      setShowRepoInputModal(false); // Close modal on successful fetch
+      setErrorMessage(null);
+      setShowRepoInputModal(false);
     } catch (err: any) {
       console.error('Failed to fetch repository:', err);
       setErrorMessage(err.message || 'Failed to fetch repository. Please check the URL and try again.');
-      setRepoFiles([]); // Clear files on error
-      setShowRepoInputModal(true); // Keep modal open if there was an error
+      setRepoFiles([]);
+      setShowRepoInputModal(true);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [githubPat]); // Add githubPat to dependencies
 
   const fetchFileContent = useCallback(async (filePath: string) => {
     setIsLoading(true);
     setErrorMessage(null);
-    setCurrentFileContent(null); // Clear previous content
+    setCurrentFileContent(null);
 
-    // Find the file object to get its raw content URL
     const findFileRecursive = (files: RepoFile[], path: string): RepoFile | undefined => {
       for (const file of files) {
         if (file.path === path && file.type === 'file') {
@@ -144,26 +149,27 @@ const App: React.FC = () => {
     }
 
     try {
-      const content = await fetchGitHubFileContent(fileToFetch.url);
+      // Pass githubPat to fetchGitHubFileContent
+      const content = await fetchGitHubFileContent(fileToFetch.url, githubPat);
       setCurrentFileContent(content);
-      setSelectedFilePath(filePath); // Set selected path only on successful content fetch
-      setActiveTab('codeViewer'); // Automatically switch to Code Viewer tab
+      setSelectedFilePath(filePath);
+      setActiveTab('codeViewer');
       setErrorMessage(null);
     } catch (err: any) {
       console.error(`Failed to fetch content for ${filePath}:`, err);
       setErrorMessage(err.message || `Failed to fetch content for ${filePath}.`);
       setCurrentFileContent(null);
-      setSelectedFilePath(null); // Clear selected path on error
+      setSelectedFilePath(null);
     } finally {
       setIsLoading(false);
     }
-  }, [repoFiles]); // Depend on repoFiles to ensure latest tree structure
+  }, [repoFiles, githubPat]); // Add githubPat to dependencies
 
   const sendMessageToAI = useCallback(async (userQuery: string, contextCode: string | null) => {
     setIsAiThinking(true);
     setErrorMessage(null);
     const updatedMessages: ChatMessage[] = [...chatMessages, { role: 'user', text: userQuery }];
-    setChatMessages(updatedMessages); // Update with user's message
+    setChatMessages(updatedMessages);
 
     try {
       const aiResponseText = await analyzeCodeWithGemini(contextCode, userQuery);
@@ -174,7 +180,6 @@ const App: React.FC = () => {
     } catch (err: any) {
       console.error('Error in AI interaction:', err);
       setErrorMessage(err.message || 'Failed to get AI response. Please try again.');
-      // If API key is invalid, prompt user to select it again.
       if (err.message.includes("API Key selection failed or is invalid.")) {
         setIsApiKeySelected(false);
         setErrorMessage("Invalid API Key. Please select a valid key from a paid GCP project.");
@@ -182,16 +187,14 @@ const App: React.FC = () => {
     } finally {
       setIsAiThinking(false);
     }
-  }, [chatMessages, setIsApiKeySelected]); // Dependency on chatMessages to correctly append
+  }, [chatMessages, setIsApiKeySelected]);
 
-  // Auto-show RepoInput modal if no repo is loaded
   useEffect(() => {
     if (!repoFiles.length && !isLoading && !errorMessage) {
       setShowRepoInputModal(true);
     }
   }, [repoFiles.length, isLoading, errorMessage]);
 
-  // Provide the context value to the entire application.
   const contextValue = useContextValue();
 
   const mainTabs = [
@@ -221,13 +224,11 @@ const App: React.FC = () => {
           </header>
 
           <div className="flex-1 flex overflow-hidden">
-            {/* File Tree Sidebar */}
             <div className="w-80 flex-shrink-0 bg-gray-800 border-r border-gray-700 overflow-hidden">
               <h2 className="text-xl font-semibold text-gray-100 p-4 sticky top-0 bg-gray-800 z-10 border-b border-gray-700">Files ({repoName || 'Repository'})</h2>
               <FileTree />
             </div>
 
-            {/* Main Content Area with Tabs */}
             <div className="flex-1 min-w-0">
               <Tabs tabs={mainTabs} activeTab={activeTab} onTabChange={setActiveTab} />
             </div>

@@ -10,6 +10,8 @@ const RepoInput: React.FC<RepoInputProps> = ({ onClose, onRepoFetched }) => {
   const {
     repoUrl,
     setRepoUrl,
+    githubPat, // New: Get githubPat from context
+    setGithubPat, // New: Get setGithubPat from context
     fetchRepo,
     isLoading,
     errorMessage,
@@ -17,11 +19,13 @@ const RepoInput: React.FC<RepoInputProps> = ({ onClose, onRepoFetched }) => {
     clearState,
   } = useContext(AppContext);
   const [inputUrl, setInputUrl] = useState(repoUrl);
+  const [patInput, setPatInput] = useState(githubPat || ''); // New: State for PAT input
 
   useEffect(() => {
     // Sync internal state if context changes (e.g., clearState is called)
     setInputUrl(repoUrl);
-  }, [repoUrl]);
+    setPatInput(githubPat || ''); // Sync PAT input as well
+  }, [repoUrl, githubPat]);
 
   const handleFetchClick = async () => {
     setErrorMessage(null); // Clear previous errors
@@ -39,16 +43,23 @@ const RepoInput: React.FC<RepoInputProps> = ({ onClose, onRepoFetched }) => {
     }
 
     setRepoUrl(inputUrl);
+    setGithubPat(patInput.trim() || null); // Set PAT to context before fetching
+    
+    // Call fetchRepo; the function itself will use the updated githubPat from context
     await fetchRepo(inputUrl);
 
     // If fetchRepo was successful (no errorMessage set by fetchRepo), close the modal
-    if (!errorMessage) { // errorMessage state check after async call
+    // Note: The errorMessage might be set asynchronously within fetchRepo.
+    // A more robust check might involve returning a boolean from fetchRepo.
+    // For now, relying on the errorMessage state after the await.
+    if (!errorMessage) { 
       onRepoFetched();
     }
   };
 
   const handleClearClick = () => {
     setInputUrl('');
+    setPatInput(''); // Clear PAT input
     clearState();
     // Keep modal open if clearing, user might want to enter a new URL
   };
@@ -74,24 +85,51 @@ const RepoInput: React.FC<RepoInputProps> = ({ onClose, onRepoFetched }) => {
           disabled={isLoading}
           aria-label="GitHub repository URL input"
         />
-        <div className="flex gap-4">
-          <button
-            onClick={handleFetchClick}
-            className="px-6 py-3 h-14 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-all duration-200 ease-in-out hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2 focus:ring-offset-gray-900 whitespace-nowrap"
-            disabled={isLoading}
-            aria-label="Fetch Repository"
-          >
-            {isLoading ? 'Fetching...' : 'Fetch Repo'}
-          </button>
-          <button
-            onClick={handleClearClick}
-            className="px-6 py-3 h-14 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-xl shadow-lg transition-all duration-200 ease-in-out hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-900 whitespace-nowrap"
-            disabled={isLoading}
-            aria-label="Clear Input"
-          >
-            Clear
-          </button>
-        </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label htmlFor="github-pat" className="text-lg text-gray-200 flex items-center gap-2">
+          GitHub Personal Access Token (Optional)
+          <span className="text-sm text-gray-400">
+            <a
+              href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-indigo-300 hover:underline ml-1"
+            >
+              (Why do I need this?)
+            </a>
+          </span>
+        </label>
+        <input
+          id="github-pat"
+          type="password"
+          value={patInput}
+          onChange={(e) => setPatInput(e.target.value)}
+          placeholder="Enter PAT for private repos (e.g., ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)"
+          className="flex-grow p-4 h-14 rounded-lg bg-gray-700 text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 border border-transparent focus:border-indigo-600 transition-colors duration-200 text-base"
+          disabled={isLoading}
+          aria-label="GitHub Personal Access Token input"
+        />
+      </div>
+
+      <div className="flex gap-4">
+        <button
+          onClick={handleFetchClick}
+          className="px-6 py-3 h-14 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-all duration-200 ease-in-out hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2 focus:ring-offset-gray-900 whitespace-nowrap"
+          disabled={isLoading}
+          aria-label="Fetch Repository"
+        >
+          {isLoading ? 'Fetching...' : 'Fetch Repo'}
+        </button>
+        <button
+          onClick={handleClearClick}
+          className="px-6 py-3 h-14 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-xl shadow-lg transition-all duration-200 ease-in-out hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-900 whitespace-nowrap"
+          disabled={isLoading}
+          aria-label="Clear Input"
+        >
+          Clear
+        </button>
       </div>
       {errorMessage && (
         <p className="text-red-500 text-sm flex items-center gap-2 font-medium" role="alert">
