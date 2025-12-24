@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, GenerateContentResponse } from '@google/genai'; // Import GenerateContentResponse for streaming
 import { RepoFile } from '../types'; // Import RepoFile type
 
 /**
@@ -93,15 +93,15 @@ ${userQuery}
  * @param selectedFilePath The path of the currently selected file.
  * @param currentFileContent The content of the currently selected file.
  * @param userQuery The user's question about the code.
- * @returns The AI's generated response text.
+ * @returns An AsyncIterable of the AI's generated response text chunks.
  * @throws Error if the API key is missing or the Gemini API call fails.
  */
-export async function analyzeCodeWithGemini(
+export async function* analyzeCodeWithGemini(
   repoFiles: RepoFile[],
   selectedFilePath: string | null,
   currentFileContent: string | null,
   userQuery: string
-): Promise<string> {
+): AsyncIterable<string> {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
     throw new Error('Gemini API key is not configured.');
@@ -113,28 +113,27 @@ export async function analyzeCodeWithGemini(
   const prompt = buildGeminiPrompt(repoFiles, selectedFilePath, currentFileContent, userQuery);
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-preview', // Changed from 'gemini-3-pro-preview' to 'gemini-2.5-flash-preview'
+    const streamResponse = await ai.models.generateContentStream({
+      model: 'gemini-flash-latest',
       contents: { parts: [{ text: prompt }] },
       config: {
         temperature: 0.7,
         topP: 0.95,
         topK: 64,
-        maxOutputTokens: 8192, // Sufficient tokens for detailed analysis
+        maxOutputTokens: 8192,
       },
     });
 
-    const textResponse = response.text;
-    if (!textResponse) {
-        console.warn("Gemini API returned an empty response text.");
-        return "The AI did not return a response. Please try again.";
+    for await (const chunk of streamResponse) {
+      const c = chunk as GenerateContentResponse;
+      if (c.text) {
+        yield c.text;
+      }
     }
-    return textResponse;
   } catch (error: any) {
-    console.error('Gemini API error:', error);
+    console.error('Gemini API error during streaming:', error);
     if (error.message.includes("Requested entity was not found.")) {
-      // This is the specific error mentioned for API key issues
-      throw new Error("API Key selection failed or is invalid. Please ensure you have selected a valid paid API key for Veo/Gemini 3 models.");
+      throw new Error("API Key selection failed or is invalid. Please ensure you have selected a valid paid API key for Veo/Gemini models.");
     }
     throw new Error(`Failed to get response from AI: ${error.message || 'Unknown error'}`);
   }

@@ -2,6 +2,8 @@ import React, { useContext, useState, useRef, useEffect } from 'react';
 import { AppContext } from '../App';
 import { ChatMessage } from '../types';
 import LoadingSpinner from './LoadingSpinner';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm'; // For GitHub Flavored Markdown
 
 const ChatInterface: React.FC = () => {
   const {
@@ -23,13 +25,13 @@ const ChatInterface: React.FC = () => {
   }, [chatMessages]);
 
   const handleSendMessage = async () => {
-    if (!userQuery.trim() || isAiThinking) return; // Only prevent sending empty/while AI is thinking
+    if (!userQuery.trim() || isAiThinking) return;
 
-    setUserQuery(''); // Clear input
+    const queryToSend = userQuery.trim();
+    setUserQuery(''); // Clear input immediately
 
     try {
-      // Pass only userQuery, App.tsx's sendMessageToAI will gather full context
-      await sendMessageToAI(userQuery.trim());
+      await sendMessageToAI(queryToSend);
     } catch (error) {
       console.error("Error sending message to AI:", error);
       // Error message will be handled by App.tsx's `setErrorMessage`
@@ -77,7 +79,31 @@ const ChatInterface: React.FC = () => {
                 }`}
             >
               <p className="font-bold mb-2">{message.role === 'user' ? 'You' : 'AI'}:</p>
-              <pre className="whitespace-pre-wrap font-sans text-base md:text-lg">{message.text}</pre>
+              {message.role === 'ai' ? (
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  className="prose prose-invert max-w-none text-base md:text-lg" // Tailwind prose for styling markdown
+                  components={{
+                    // Custom components for better styling within Tailwind context
+                    a: ({ node, ...props }) => <a {...props} className="text-indigo-300 hover:underline" />,
+                    code: ({ node, inline, className, children, ...props }) => {
+                      const match = /language-(\w+)/.exec(className || '');
+                      return !inline && match ? (
+                        <code className="block bg-gray-800 p-3 rounded-md overflow-x-auto text-sm my-2">
+                          {String(children).replace(/\n$/, '')}
+                        </code>
+                      ) : (
+                        <code className="bg-gray-600 text-sm px-1 rounded-md">{children}</code>
+                      );
+                    },
+                    pre: ({ children }) => <pre className="p-0 m-0">{children}</pre>, // Prevent markdown from adding extra pre styling
+                  }}
+                >
+                  {message.text}
+                </ReactMarkdown>
+              ) : (
+                <pre className="whitespace-pre-wrap font-sans text-base md:text-lg">{message.text}</pre>
+              )}
               {message.role === 'ai' && (
                 <button
                   onClick={() => handleCopyAiResponse(message.text)}
@@ -120,13 +146,13 @@ const ChatInterface: React.FC = () => {
           }
           rows={4}
           className="flex-grow p-4 rounded-xl bg-gray-700 text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 border border-transparent focus:border-indigo-600 resize-y custom-scrollbar transition-colors duration-200 text-base"
-          disabled={isTextAreaDisabled} // Only disable if AI is thinking
+          disabled={isTextAreaDisabled}
           aria-label="Chat input for AI assistant"
         ></textarea>
         <button
           onClick={handleSendMessage}
           className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-lg rounded-xl shadow-lg transition-all duration-200 ease-in-out hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2 focus:ring-offset-gray-800 self-end"
-          disabled={isSendButtonDisabled} // Disable based on full conditions
+          disabled={isSendButtonDisabled}
           aria-label="Send message to AI"
         >
           {getSendButtonText()}

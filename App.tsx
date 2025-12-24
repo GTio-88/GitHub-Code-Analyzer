@@ -183,15 +183,35 @@ const App: React.FC = () => {
   const sendMessageToAI = useCallback(async (userQuery: string) => {
     setIsAiThinking(true);
     setErrorMessage(null);
-    const updatedMessages: ChatMessage[] = [...chatMessages, { role: 'user', text: userQuery }];
-    setChatMessages(updatedMessages);
+    
+    // Add user message to chat immediately
+    const userMessage: ChatMessage = { role: 'user', text: userQuery };
+    setChatMessages((prevMessages) => [...prevMessages, userMessage]);
 
+    // Add a placeholder for AI's response to update incrementally
+    let aiResponsePlaceholder: ChatMessage = { role: 'ai', text: '' };
+    setChatMessages((prevMessages) => [...prevMessages, aiResponsePlaceholder]);
+    
     try {
-      const aiResponseText = await analyzeCodeWithGemini(repoFiles, selectedFilePath, currentFileContent, userQuery);
-      setChatMessages((prevMessages) => [
-        ...prevMessages,
-        { role: 'ai', text: aiResponseText },
-      ]);
+      const stream = analyzeCodeWithGemini(repoFiles, selectedFilePath, currentFileContent, userQuery);
+      
+      let fullResponseText = '';
+      for await (const chunk of stream) {
+        fullResponseText += chunk;
+        // Update the last AI message with the new chunk
+        setChatMessages((prevMessages) => {
+          const newMessages = [...prevMessages];
+          // Find the last AI message (which is our placeholder or partially filled response)
+          const lastAiMessageIndex = newMessages.length - 1;
+          if (newMessages[lastAiMessageIndex]?.role === 'ai') {
+            newMessages[lastAiMessageIndex] = { ...newMessages[lastAiMessageIndex], text: fullResponseText };
+          } else {
+            // Fallback: if somehow the last message isn't AI, add a new one (shouldn't happen with logic above)
+            newMessages.push({ role: 'ai', text: fullResponseText });
+          }
+          return newMessages;
+        });
+      }
     } catch (err: any) {
       console.error('Error in AI interaction:', err);
       setErrorMessage(err.message || 'Failed to get AI response. Please try again.');
@@ -199,6 +219,9 @@ const App: React.FC = () => {
         setIsApiKeySelected(false);
         setErrorMessage("Invalid API Key. Please select a valid key from a paid GCP project.");
       }
+      // If an error occurs, ensure the AI thinking state is reset and
+      // remove any incomplete AI message or mark it as errored if desired.
+      // For now, the error message in state handles the notification.
     } finally {
       setIsAiThinking(false);
     }
