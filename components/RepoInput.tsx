@@ -14,7 +14,7 @@ const RepoInput: React.FC<RepoInputProps> = ({ onClose, onRepoFetched }) => {
     setGithubPat, // New: Get setGithubPat from context
     fetchRepo,
     isLoading,
-    errorMessage,
+    errorMessage, // Keep errorMessage for displaying it if fetchRepo returns false
     setErrorMessage,
     clearState,
   } = useContext(AppContext);
@@ -34,7 +34,8 @@ const RepoInput: React.FC<RepoInputProps> = ({ onClose, onRepoFetched }) => {
       return;
     }
 
-    const githubUrlRegex = /^https:\/\/github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)(\/.*)?$/;
+    // Updated regex to correctly extract owner and repo name, ignoring optional .git suffix
+    const githubUrlRegex = /^https:\/\/github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+?)(\.git)?(\/.*)?$/;
     const match = inputUrl.match(githubUrlRegex);
 
     if (!match) {
@@ -45,16 +46,15 @@ const RepoInput: React.FC<RepoInputProps> = ({ onClose, onRepoFetched }) => {
     setRepoUrl(inputUrl);
     setGithubPat(patInput.trim() || null); // Set PAT to context before fetching
     
-    // Call fetchRepo; the function itself will use the updated githubPat from context
-    await fetchRepo(inputUrl);
+    // Call fetchRepo and directly check its return value
+    const success = await fetchRepo(inputUrl);
 
-    // If fetchRepo was successful (no errorMessage set by fetchRepo), close the modal
-    // Note: The errorMessage might be set asynchronously within fetchRepo.
-    // A more robust check might involve returning a boolean from fetchRepo.
-    // For now, relying on the errorMessage state after the await.
-    if (!errorMessage) { 
+    // If fetchRepo was successful, close the modal
+    if (success) { 
       onRepoFetched();
     }
+    // If not successful, the errorMessage will have been set by fetchRepo itself,
+    // and the modal will remain open to display it.
   };
 
   const handleClearClick = () => {

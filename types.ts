@@ -21,7 +21,7 @@ export interface AppContextType {
   repoName: string;
   setRepoDetails: (owner: string, name: string) => void;
   repoFiles: RepoFile[];
-  setRepoFiles: (files: RepoFile[]) => void;
+  setRepoFiles: (files: RepoFile[];) => void;
   selectedFilePath: string | null;
   setSelectedFilePath: (path: string | null) => void;
   currentFileContent: string | null;
@@ -38,7 +38,7 @@ export interface AppContextType {
   setIsApiKeySelected: (selected: boolean) => void;
   githubPat: string | null; // New: GitHub Personal Access Token
   setGithubPat: (pat: string | null) => void; // New: Setter for PAT
-  fetchRepo: (url: string) => Promise<void>;
+  fetchRepo: (url: string) => Promise<boolean>; // Changed to return boolean
   fetchFileContent: (filePath: string) => Promise<void>;
   sendMessageToAI: (userQuery: string, contextCode: string | null) => Promise<void>;
   clearState: () => void;

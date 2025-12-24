@@ -57,7 +57,7 @@ const App: React.FC = () => {
       setIsApiKeySelected,
       githubPat, // New: Add githubPat to context
       setGithubPat, // New: Add setGithubPat to context
-      fetchRepo,
+      fetchRepo, // Now returns Promise<boolean>
       fetchFileContent,
       sendMessageToAI,
       clearState,
@@ -84,7 +84,7 @@ const App: React.FC = () => {
     setActiveTab('codeViewer');
   }, []);
 
-  const fetchRepo = useCallback(async (url: string) => {
+  const fetchRepo = useCallback(async (url: string): Promise<boolean> => { // Updated return type
     setIsLoading(true);
     setErrorMessage(null);
     setChatMessages([]);
@@ -93,7 +93,8 @@ const App: React.FC = () => {
     setActiveTab('codeViewer');
 
     try {
-      const githubUrlRegex = /^https:\/\/github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)(\/.*)?$/;
+      // Updated regex to correctly extract owner and repo name, ignoring optional .git suffix
+      const githubUrlRegex = /^https:\/\/github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+?)(\.git)?(\/.*)?$/;
       const match = url.match(githubUrlRegex);
 
       if (!match) {
@@ -101,7 +102,7 @@ const App: React.FC = () => {
       }
 
       const owner = match[1];
-      const repo = match[2];
+      const repo = match[2]; // Repository name is now correctly extracted without .git
 
       setRepoOwner(owner);
       setRepoName(repo);
@@ -112,11 +113,13 @@ const App: React.FC = () => {
       setRepoFiles(files);
       setErrorMessage(null);
       setShowRepoInputModal(false);
+      return true; // Indicate success
     } catch (err: any) {
       console.error('Failed to fetch repository:', err);
       setErrorMessage(err.message || 'Failed to fetch repository. Please check the URL and try again.');
       setRepoFiles([]);
       setShowRepoInputModal(true);
+      return false; // Indicate failure
     } finally {
       setIsLoading(false);
     }
