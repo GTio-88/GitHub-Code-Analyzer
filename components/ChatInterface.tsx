@@ -24,7 +24,7 @@ const ChatInterface: React.FC = () => {
   }, [chatMessages]);
 
   const handleSendMessage = async () => {
-    if (!userQuery.trim() || isAiThinking) return;
+    if (!userQuery.trim() || isAiThinking) return; // Only prevent sending empty/while AI is thinking
 
     setUserQuery(''); // Clear input
 
@@ -47,7 +47,17 @@ const ChatInterface: React.FC = () => {
     });
   };
 
-  const isSendDisabled = isAiThinking || !userQuery.trim() || !repoFiles.length;
+  // Separate disabled states for textarea and send button for better UX
+  const isTextAreaDisabled = isAiThinking;
+  const isSendButtonDisabled = isAiThinking || !userQuery.trim() || !repoFiles.length;
+
+  // Dynamic text for the send button
+  const getSendButtonText = () => {
+    if (isAiThinking) return 'Thinking...';
+    if (!repoFiles.length) return 'Load Repo to Send';
+    if (!userQuery.trim()) return 'Type to Send';
+    return 'Send';
+  };
 
   return (
     <div className="flex flex-col h-full bg-gray-900">
@@ -101,7 +111,7 @@ const ChatInterface: React.FC = () => {
           value={userQuery}
           onChange={(e) => setUserQuery(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey && !isSendDisabled) {
+            if (e.key === 'Enter' && !e.shiftKey && !isSendButtonDisabled) {
               e.preventDefault();
               handleSendMessage();
             }
@@ -113,16 +123,16 @@ const ChatInterface: React.FC = () => {
           }
           rows={4}
           className="flex-grow p-4 rounded-xl bg-gray-700 text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-600 border border-transparent focus:border-indigo-600 resize-y custom-scrollbar transition-colors duration-200 text-base"
-          disabled={isSendDisabled}
+          disabled={isTextAreaDisabled} // Only disable if AI is thinking
           aria-label="Chat input for AI assistant"
         ></textarea>
         <button
           onClick={handleSendMessage}
           className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-lg rounded-xl shadow-lg transition-all duration-200 ease-in-out hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2 focus:ring-offset-gray-800 self-end"
-          disabled={isSendDisabled}
+          disabled={isSendButtonDisabled} // Disable based on full conditions
           aria-label="Send message to AI"
         >
-          Send
+          {getSendButtonText()}
         </button>
       </div>
     </div>

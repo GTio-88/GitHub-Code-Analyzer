@@ -25,7 +25,7 @@ const App: React.FC = () => {
   const [isAiThinking, setIsAiThinking] = useState<boolean>(false);
   const [isApiKeySelected, setIsApiKeySelected] = useState<boolean>(false);
   const [githubPat, setGithubPat] = useState<string | null>(null); // New state for GitHub PAT
-  const [activeTab, setActiveTab] = useState<ActiveTab>('codeViewer');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('aiAssistant'); // Changed default to 'aiAssistant'
   const [showRepoInputModal, setShowRepoInputModal] = useState<boolean>(false);
 
   // Helper to ensure context is always used within a provider
@@ -81,7 +81,7 @@ const App: React.FC = () => {
     setIsAiThinking(false);
     setIsApiKeySelected(false); // Reset API key selection as well on clear
     setGithubPat(null); // Clear PAT on clear state
-    setActiveTab('codeViewer');
+    setActiveTab('aiAssistant'); // Reset to 'aiAssistant' on clear
   }, []);
 
   const fetchRepo = useCallback(async (url: string): Promise<boolean> => { // Updated return type
@@ -90,8 +90,8 @@ const App: React.FC = () => {
     setChatMessages([]);
     setSelectedFilePath(null);
     setCurrentFileContent(null);
-    setActiveTab('codeViewer');
-
+    setActiveTab('aiAssistant'); // Ensure AI Assistant is active after fetching repo
+    
     try {
       // Updated regex to correctly extract owner and repo name, ignoring optional .git suffix
       const githubUrlRegex = /^https:\/\/github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+?)(\.git)?(\/.*)?$/;
@@ -156,7 +156,7 @@ const App: React.FC = () => {
       const content = await fetchGitHubFileContent(fileToFetch.url, githubPat);
       setCurrentFileContent(content);
       setSelectedFilePath(filePath);
-      setActiveTab('codeViewer');
+      setActiveTab('codeViewer'); // Switch to code viewer when a file is selected
       setErrorMessage(null);
     } catch (err: any) {
       console.error(`Failed to fetch content for ${filePath}:`, err);
